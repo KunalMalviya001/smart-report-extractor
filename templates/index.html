@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Report Extractor</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #1a1814;
+      --paper: #f5f0e8;
+      --paper-dark: #ece6d6;
+      --accent: #c84b2f;
+      --accent-light: #f0d5ce;
+      --muted: #7a7367;
+      --border: #cfc8b8;
+      --success: #2a6e4a;
+      --success-bg: #d4edd9;
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      border-bottom: 2px solid var(--ink);
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+    }
+
+    .logo {
+      font-family: 'Fraunces', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .logo span { color: var(--accent); }
+
+    .tagline {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    main {
+      flex: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      width: 100%;
+    }
+
+    .intro {
+      margin-bottom: 2.5rem;
+    }
+
+    .intro h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 2.6rem;
+      font-weight: 300;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+    }
+
+    .intro h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .intro p {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 480px;
+    }
+
+    /* Drop zone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 4px;
+      background: white;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .drop-label {
+      font-family: 'Fraunces', serif;
+      font-size: 1.1rem;
+      font-weight: 300;
+      margin-bottom: 0.4rem;
+    }
+
+    .drop-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .file-selected {
+      display: none;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--success-bg);
+      border: 1px solid #a3d4b4;
+      border-radius: 4px;
+      padding: 0.85rem 1.2rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.78rem;
+    }
+
+    .file-selected.show { display: flex; }
+    .file-selected .file-name { font-weight: 500; flex: 1; }
+    .file-selected .remove-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 1rem;
+      padding: 0 0.2rem;
+    }
+
+    .extract-btn {
+      width: 100%;
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      padding: 1rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .extract-btn:hover:not(:disabled) { background: var(--accent); }
+    .extract-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Loading */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+      margin-top: 2rem;
+    }
+
+    .loading.show { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading p { font-size: 0.75rem; color: var(--muted); }
+
+    /* Results */
+    .result {
+      display: none;
+      margin-top: 2.5rem;
+      animation: fadeUp 0.4s ease;
+    }
+
+    .result.show { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .doc-type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 0.3rem 0.8rem;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .confidence-badge {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .confidence-high { background: var(--success-bg); color: var(--success); }
+    .confidence-medium { background: #fff3cd; color: #856404; }
+    .confidence-low { background: #fde8e8; color: #9b2335; }
+
+    .section-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+
+    .summary-box {
+      background: white;
+      border-left: 3px solid var(--accent);
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+      font-family: 'Fraunces', serif;
+      font-size: 1rem;
+      font-weight: 300;
+      line-height: 1.7;
+      color: var(--ink);
+    }
+
+    .fields-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .field-item {
+      background: white;
+      padding: 0.85rem 1rem;
+    }
+
+    .field-key {
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .field-value {
+      font-size: 0.82rem;
+      color: var(--ink);
+      word-break: break-word;
+    }
+
+    .field-value.null-val { color: var(--border); font-style: italic; }
+
+    .meta-row {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .error-box {
+      display: none;
+      background: #fde8e8;
+      border: 1px solid #f5c6c6;
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      font-size: 0.78rem;
+      color: #9b2335;
+    }
+
+    .error-box.show { display: block; }
+
+    .reset-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      padding: 0.4rem 0.9rem;
+      cursor: pointer;
+      border-radius: 2px;
+      letter-spacing: 0.04em;
+      margin-top: 1.5rem;
+      transition: all 0.2s;
+    }
+
+    .reset-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1rem 2rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Smart<span>Report</span></div>
+  <div class="tagline">PDF Intelligence Extractor</div>
+</header>
+
+<main>
+  <div class="intro">
+    <h1>Drop a PDF.<br>Get <em>structured data</em>.</h1>
+    <p>Upload any report — invoice, CV, financial statement, research paper — and get clean extracted fields plus a plain-English summary, powered by Gemini.</p>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".pdf" />
+    <span class="drop-icon">📄</span>
+    <div class="drop-label">Drop your PDF here</div>
+    <div class="drop-sub">or click to browse · PDF only · any size</div>
+  </div>
+
+  <div class="file-selected" id="fileSelected">
+    <span>📎</span>
+    <span class="file-name" id="fileName"></span>
+    <button class="remove-btn" id="removeFile">✕</button>
+  </div>
+
+  <button class="extract-btn" id="extractBtn" disabled>Extract & Analyse</button>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Sending to Gemini · Extracting fields · Building summary…</p>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="result" id="result">
+    <div class="result-header">
+      <div>
+        <span class="doc-type-badge" id="docTypeBadge">—</span>
+      </div>
+      <span class="confidence-badge" id="confidenceBadge"></span>
+    </div>
+
+    <div class="section-label">Summary</div>
+    <div class="summary-box" id="summaryBox"></div>
+
+    <div class="section-label">Extracted Fields</div>
+    <div class="fields-grid" id="fieldsGrid"></div>
+
+    <div class="meta-row" id="metaRow"></div>
+
+    <button class="reset-btn" id="resetBtn">← Analyse another document</button>
+  </div>
+</main>
+
+<footer>Smart Report Extractor · Logos Labs Engineering Assessment · Powered by Gemini 1.5 Flash</footer>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  const fileSelected = document.getElementById('fileSelected');
+  const fileName = document.getElementById('fileName');
+  const removeFile = document.getElementById('removeFile');
+  const extractBtn = document.getElementById('extractBtn');
+  const loading = document.getElementById('loading');
+  const result = document.getElementById('result');
+  const errorBox = document.getElementById('errorBox');
+
+  let selectedFile = null;
+
+  function setFile(file) {
+    if (!file || !file.name.endsWith('.pdf')) {
+      showError('Please upload a valid PDF file.');
+      return;
+    }
+    selectedFile = file;
+    fileName.textContent = file.name;
+    fileSelected.classList.add('show');
+    extractBtn.disabled = false;
+    errorBox.classList.remove('show');
+  }
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  removeFile.addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    fileSelected.classList.remove('show');
+    extractBtn.disabled = true;
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    fileSelected.classList.remove('show');
+    extractBtn.disabled = true;
+    result.classList.remove('show');
+    errorBox.classList.remove('show');
+  });
+
+  extractBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    extractBtn.disabled = true;
+    loading.classList.add('show');
+    result.classList.remove('show');
+    errorBox.classList.remove('show');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await fetch('/extract', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      loading.classList.remove('show');
+
+      if (!res.ok || !data.success) {
+        showError(data.detail || data.error || 'Something went wrong.');
+        extractBtn.disabled = false;
+        return;
+      }
+
+      renderResult(data);
+    } catch (err) {
+      loading.classList.remove('show');
+      showError('Network error: ' + err.message);
+      extractBtn.disabled = false;
+    }
+  });
+
+  function renderResult(data) {
+    // Doc type badge
+    document.getElementById('docTypeBadge').textContent = data.document_type || 'Unknown';
+
+    // Confidence badge
+    const cb = document.getElementById('confidenceBadge');
+    cb.textContent = (data.confidence || 'medium') + ' confidence';
+    cb.className = 'confidence-badge confidence-' + (data.confidence || 'medium');
+
+    // Summary
+    document.getElementById('summaryBox').textContent = data.summary || 'No summary available.';
+
+    // Fields
+    const grid = document.getElementById('fieldsGrid');
+    grid.innerHTML = '';
+    const fields = data.fields || {};
+    const keys = Object.keys(fields);
+
+    if (keys.length === 0) {
+      grid.innerHTML = '<div class="field-item"><div class="field-value null-val">No structured fields extracted.</div></div>';
+    } else {
+      keys.forEach(key => {
+        const val = fields[key];
+        const item = document.createElement('div');
+        item.className = 'field-item';
+        item.innerHTML = `
+          <div class="field-key">${key.replace(/_/g, ' ')}</div>
+          <div class="field-value ${val === null || val === 'null' ? 'null-val' : ''}">${val !== null && val !== 'null' ? val : 'not found'}</div>
+        `;
+        grid.appendChild(item);
+      });
+    }
+
+    // Meta
+    document.getElementById('metaRow').innerHTML = `
+      <span>📄 ${data.filename}</span>
+    `;
+
+    result.classList.add('show');
+  }
+
+  function showError(msg) {
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.classList.add('show');
+  }
+</script>
+</body>
+</html>
